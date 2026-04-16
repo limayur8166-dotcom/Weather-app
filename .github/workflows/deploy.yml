@@ -30,10 +30,13 @@ jobs:
     - name: Build Docker Image
       run: docker build -t ${{ secrets.ECR_URI }}:${{ github.sha }} .
 <<<<<<< HEAD
+<<<<<<< HEAD
     - name: Push Image
       run: docker push ${{ secrets.ECR_URI }}:${{ github.sha }}
 =======
 >>>>>>> e91b453 (Fix CI/CD tagging issue)
+=======
+>>>>>>> e91b4533478049aeed9ba1e6db83c49f42214f99
 
     # 🔥 Tag as latest
     - name: Tag Image
