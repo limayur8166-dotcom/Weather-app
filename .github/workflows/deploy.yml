@@ -12,6 +12,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
+    # 🔐 AWS Login
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
@@ -19,24 +20,47 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Check AWS Identity
-      run: aws sts get-caller-identity
-
+    # 🔑 Login to ECR
     - name: Login to Amazon ECR
       run: |
         aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_URI }}
 
+    # 🔢 Version (v1, v2, v3...)
+    - name: Set version
+      run: echo "VERSION=v${{ github.run_number }}" >> $GITHUB_ENV
+
+    # 🐳 Build image
     - name: Build Docker Image
-      run: docker build -t ${{ secrets.ECR_URI }}:${{ github.sha }} .
+      run: docker build -t ${{ secrets.ECR_URI }}:${{ env.VERSION }} .
 
-    - name: Tag Image
-      run: docker tag ${{ secrets.ECR_URI }}:${{ github.sha }} ${{ secrets.ECR_URI }}:latest
+    # 🔁 Tag latest
+    - name: Tag Latest
+      run: docker tag ${{ secrets.ECR_URI }}:${{ env.VERSION }} ${{ secrets.ECR_URI }}:latest
 
+    # 🚀 Push images
     - name: Push Images
       run: |
-        docker push ${{ secrets.ECR_URI }}:${{ github.sha }}
+        docker push ${{ secrets.ECR_URI }}:${{ env.VERSION }}
         docker push ${{ secrets.ECR_URI }}:latest
 
+    # 🧱 Register new task definition (IMPORTANT 🔥)
+    - name: Register Task Definition
+      run: |
+        aws ecs register-task-definition \
+        --family weather-app-task \
+        --network-mode awsvpc \
+        --requires-compatibilities FARGATE \
+        --cpu 256 \
+        --memory 512 \
+        --execution-role-arn arn:aws:iam::895850516918:role/ecsTaskExecutionRole \
+        --container-definitions "[{
+          \"name\":\"weather-container\",
+          \"image\":\"${{ secrets.ECR_URI }}:latest\",
+          \"portMappings\":[{\"containerPort\":80,\"protocol\":\"tcp\"}],
+          \"essential\":true
+        }]"
+
+    # 🚀 Deploy
     - name: Deploy to ECS
       run: |
         aws ecs update-service \
